@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dialysemaschinen-Simulation – Fachweiterbildung</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#e0e0e0; min-height:100vh; }
+
+    header {
+      background:linear-gradient(135deg,#0f3460,#16213e);
+      padding:12px 24px; display:flex; align-items:center; gap:16px;
+      border-bottom:2px solid #e94560; box-shadow:0 2px 10px rgba(233,69,96,0.3);
+    }
+    header h1 { font-size:1.3rem; color:#e94560; }
+    header span { font-size:0.85rem; color:#a0aec0; }
+    .badge { background:#e94560; color:white; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; margin-left:auto; }
+
+    .main-grid {
+      display:grid;
+      grid-template-columns:255px 1fr 270px;
+      grid-template-rows:auto;
+      gap:10px; padding:10px;
+      max-width:1700px; margin:0 auto;
+      align-items:start;
+    }
+
+    .panel { background:#16213e; border:1px solid #0f3460; border-radius:10px; padding:12px; }
+    .panel h2 { font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; color:#63b3ed; margin-bottom:10px; border-bottom:1px solid #0f3460; padding-bottom:6px; }
+
+    #machineCanvas { width:100%; height:auto; display:block; border-radius:8px; }
+
+    /* Controls */
+    .ctrl-group { margin-bottom:11px; }
+    .ctrl-label { display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:3px; color:#a0aec0; }
+    .ctrl-label .val { color:#68d391; font-weight:bold; font-variant-numeric:tabular-nums; }
+    .ctrl-label .val.auto { color:#fbbf24; }
+    input[type=range] { width:100%; accent-color:#e94560; cursor:pointer; }
+    .pump-indicator { display:flex; align-items:center; gap:6px; margin-top:3px; }
+    .pump-dot  { width:9px; height:9px; border-radius:50%; background:#68d391; animation:pg 1.5s infinite; }
+    .pump-dot.warn  { background:#fbd38d; animation:py 1.5s infinite; }
+    .pump-dot.alert { background:#fc8181; animation:pr 0.8s infinite; }
+    @keyframes pg { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes py { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes pr { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .separator { border:none; border-top:1px solid #0f3460; margin:8px 0; }
+    .mode-btn { background:#0f3460; border:1px solid #1a4080; color:#a0aec0; padding:4px 10px; border-radius:6px; font-size:0.78rem; cursor:pointer; margin-right:3px; margin-bottom:3px; }
+    .mode-btn.active { background:#e94560; border-color:#e94560; color:white; }
+    #startBtn { width:100%; padding:9px; background:linear-gradient(135deg,#e94560,#c73652); border:none; border-radius:8px; color:white; font-size:0.9rem; font-weight:bold; cursor:pointer; margin-top:8px; }
+    #startBtn.running { background:linear-gradient(135deg,#38a169,#2f855a); }
+    .auto-display { background:#0d1b2a; border:1px solid #4a6020; border-radius:6px; padding:7px 10px; margin-top:3px; }
+    .auto-display .auto-label { font-size:0.7rem; color:#fbbf24; margin-bottom:3px; }
+    .auto-display .auto-val { font-size:0.85rem; color:#fbbf24; font-weight:bold; font-family:monospace; }
+
+    /* Monitor */
+    .monitor-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .monitor-card { background:#0d1b2a; border-radius:7px; padding:7px; text-align:center; border:1px solid #0f3460; }
+    .monitor-card .m-label { font-size:0.68rem; color:#718096; }
+    .monitor-card .m-val { font-size:1.15rem; font-weight:bold; font-variant-numeric:tabular-nums; color:#63b3ed; line-height:1.3; }
+    .monitor-card .m-unit { font-size:0.68rem; color:#718096; }
+    .monitor-card.ok-card .m-val { color:#68d391; }
+    .alarm-box { background:#2d1b1b; border:1px solid #e94560; border-radius:6px; padding:7px 10px; font-size:0.76rem; color:#fc8181; margin-top:8px; min-height:34px; }
+    .alarm-box.ok { background:#1b2d1b; border-color:#68d391; color:#68d391; }
+    .bilanz-bar-wrap { background:#0d1b2a; border-radius:5px; overflow:hidden; height:16px; }
+    .bilanz-bar { height:100%; background:linear-gradient(90deg,#63b3ed,#4299e1); transition:width 0.5s; display:flex; align-items:center; justify-content:flex-end; padding-right:5px; font-size:0.68rem; color:white; font-weight:bold; }
+    .bilanz-bar.neg { background:linear-gradient(90deg,#e94560,#c53030); }
+    .tabs { display:flex; gap:4px; margin-bottom:8px; }
+    .tab-btn { background:#0f3460; border:none; color:#a0aec0; padding:4px 9px; border-radius:5px; font-size:0.75rem; cursor:pointer; }
+    .tab-btn.active { background:#e94560; color:white; }
+    .tab-content { display:none; font-size:0.78rem; line-height:1.5; color:#a0aec0; }
+    .tab-content.active { display:block; }
+    .tab-content p { margin-bottom:5px; }
+    .highlight { color:#63b3ed; font-weight:bold; }
+
+    /* Qeff balance panel */
+    .qeff-box { background:#0a1620; border:1px solid #1e4060; border-radius:8px; padding:10px; margin-top:8px; }
+    .qeff-title { font-size:0.75rem; color:#fbbf24; font-weight:bold; margin-bottom:6px; }
+    .qeff-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:0.75rem; }
+    .qeff-bar-wrap { flex:1; background:#0d1b2a; border-radius:3px; height:12px; overflow:hidden; }
+    .qeff-bar { height:100%; border-radius:3px; transition:width 0.4s; }
+    .qeff-name { width:78px; color:#a0aec0; flex-shrink:0; text-align:right; }
+    .qeff-value { width:65px; font-family:monospace; font-weight:bold; flex-shrink:0; }
+    .qeff-formula { font-family:monospace; font-size:0.72rem; color:#a0aec0; margin-top:5px; line-height:1.6; }
+    .qeff-formula .eq { color:#fbbf24; }
+
+    .speed-bars { margin-top:8px; }
+    .speed-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:0.74rem; }
+    .speed-name { width:90px; color:#a0aec0; flex-shrink:0; text-align:right; }
+    .speed-bar-wrap { flex:1; background:#0d1b2a; border-radius:3px; height:10px; overflow:hidden; }
+    .speed-bar { height:100%; border-radius:3px; transition:width 0.4s; }
+    .speed-val { width:55px; font-family:monospace; font-size:0.72rem; flex-shrink:0; }
+
+    .legend { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; font-size:0.72rem; }
+    .legend-item { display:flex; align-items:center; gap:3px; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+    /* Alarm quiz */
+    .alarm-scenario-btn { display:flex; align-items:center; gap:6px; width:100%; padding:6px 10px; margin-bottom:4px; background:#1a0f0f; border:1px solid #7f1d1d; border-radius:7px; color:#fca5a5; font-size:0.78rem; cursor:pointer; text-align:left; }
+    .alarm-scenario-btn:hover { background:#2a1010; border-color:#e94560; }
+    .alarm-scenario-btn .alarm-tag { font-size:0.68rem; padding:2px 6px; border-radius:4px; background:#7f1d1d; color:#fca5a5; flex-shrink:0; }
+    .alarm-scenario-btn.active-alarm { background:#2d0a0a; border-color:#e94560; border-width:2px; animation: alarmPulse 0.8s infinite; }
+    @keyframes alarmPulse { 0%,100%{border-color:#e94560} 50%{border-color:#ff6b6b} }
+
+    /* Quiz overlay */
+    #quizOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; overflow-y:auto; padding:20px; }
+    .quiz-box { max-width:680px; margin:0 auto; background:#0f1e30; border:2px solid #e94560; border-radius:14px; padding:22px; }
+    .quiz-alarm-title { font-size:1.1rem; font-weight:bold; color:#fc8181; margin-bottom:6px; }
+    .quiz-desc { font-size:0.83rem; color:#a0c0d8; margin-bottom:16px; line-height:1.55; }
+    .quiz-section-head { font-size:0.8rem; font-weight:bold; text-transform:uppercase; letter-spacing:0.05em; color:#63b3ed; margin-bottom:8px; }
+    .quiz-options { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+    .quiz-option { display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#0d1b2a; border:1px solid #1e3a50; border-radius:8px; cursor:pointer; font-size:0.82rem; color:#c0d0e0; transition:background 0.15s,border-color 0.15s; }
+    .quiz-option:hover { background:#112238; border-color:#3b82f6; }
+    .quiz-option.selected { background:#0c2240; border-color:#60a5fa; }
+    .quiz-option.correct  { background:#0a2a14; border-color:#22c55e; color:#86efac; }
+    .quiz-option.wrong    { background:#2a0a0a; border-color:#e94560; color:#fca5a5; }
+    .quiz-option input[type=checkbox] { margin-top:2px; accent-color:#60a5fa; flex-shrink:0; }
+    .quiz-btn { padding:9px 22px; border:none; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer; margin-right:8px; }
+    .quiz-btn-submit { background:linear-gradient(135deg,#e94560,#c73652); color:white; }
+    .quiz-btn-close  { background:#1a3050; color:#a0c0d8; }
+    .quiz-feedback { margin-top:14px; padding:12px; border-radius:8px; font-size:0.82rem; line-height:1.6; display:none; }
+    .quiz-feedback.good { background:#0a2a14; border:1px solid #22c55e; color:#86efac; }
+    .quiz-feedback.bad  { background:#2a0a14; border:1px solid #e94560; color:#fca5a5; }
+    .quiz-score { font-size:1.3rem; font-weight:bold; margin-bottom:6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="30" height="30" viewBox="0 0 32 32">
+    <rect x="2" y="4" width="28" height="24" rx="4" fill="#0f3460" stroke="#e94560" stroke-width="1.5"/>
+    <rect x="6" y="8" width="8" height="14" rx="2" fill="#1a4080"/>
+    <rect x="18" y="8" width="8" height="14" rx="2" fill="#1a4080"/>
+    <circle cx="10" cy="21" r="2" fill="#68d391"/>
+    <circle cx="22" cy="21" r="2" fill="#63b3ed"/>
+  </svg>
+  <div>
+    <h1>CRRT-Simulation – Intensivstation</h1>
+    <span>Interaktive Lernumgebung – Fachweiterbildung Nephrologie &amp; Dialyse / Intensivpflege</span>
+  </div>
+  <span class="badge">ITS-LERNMODUS</span>
+</header>
+
+<div class="main-grid">
+
+  <!-- ===== LINKS: STEUERUNG ===== -->
+  <div class="panel" id="controls-panel">
+    <h2>Parametersteuerung</h2>
+
+    <div style="margin-bottom:10px">
+      <div style="font-size:0.76rem;color:#a0aec0;margin-bottom:5px">CRRT-Modus:</div>
+      <button class="mode-btn active" onclick="setMode('CVVHD')">CVVHD</button>
+      <button class="mode-btn" onclick="setMode('CVVHDF')">CVVHDF</button>
+      <button class="mode-btn" onclick="setMode('CVVHF')">CVVHF</button>
+      <button class="mode-btn" onclick="setMode('SCUF')">SCUF</button>
+    </div>
+    <hr class="separator">
+
+    <!-- ⑥ Blutpumpe -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">
+        <span style="color:#a78bfa">⑥ Blutpumpe (QB)</span>
+        <span class="val" id="valBlut">150 ml/min</span>
+      </div>
+      <input type="range" id="slBlut" min="20" max="300" value="150" oninput="updateCtrl()">
+      <div class="pump-indicator"><div class="pump-dot" id="dotBlut"></div>
+        <span style="font-size:0.72rem;color:#a0aec0">Arterieller Kreislauf</span></div>
+    </div>
+
+    <!-- ③ Heparinpumpe -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">
+        <span style="color:#fb923c">③ Heparinpumpe</span>
+        <span class="val" id="valSyringe">5 ml/h</span>
+      </div>
+      <input type="range" id="slSyringe" min="0" max="20" value="5" step="0.5" oninput="updateCtrl()">
+    </div>
+
+    <hr class="separator">
+
+    <!-- ④ Dialysatpumpe -->
+    <div class="ctrl-group" id="dialysatGroup">
+      <div class="ctrl-label">
+        <span style="color:#60a5fa">④ Dialysatpumpe (QD)</span>
+        <span class="val" id="valDialysat">1500 ml/h</span>
+      </div>
+      <input type="range" id="slDialysat" min="0" max="3000" value="1500" step="50" oninput="updateCtrl()">
+      <div class="pump-indicator"><div class="pump-dot" id="dotDialysat"></div></div>
+    </div>
+
+    <!-- ⑤ Substitutionspumpe -->
+    <div class="ctrl-group" id="substGroup" style="opacity:0.4">
+      <div class="ctrl-label">
+        <span style="color:#34d399">⑤ Substitutionspumpe (QS)</span>
+        <span class="val" id="valSubst">0 ml/h</span>
+      </div>
+      <input type="range" id="slSubst" min="0" max="3000" value="0" step="50" oninput="updateCtrl()" disabled>
+      <div class="pump-indicator"><div class="pump-dot" id="dotSubst" style="background:#4a5568"></div>
+        <span style="font-size:0.72rem;color:#a0aec0" id="substModeLabel">Post-Filter</span></div>
+      <div style="display:flex;gap:4px;margin-top:5px">
+        <button class="mode-btn active" id="btnPost" onclick="setSubMode('post')">Post-Filter</button>
+        <button class="mode-btn" id="btnPre" onclick="setSubMode('pre')">Prä-Filter</button>
+      </div>
+    </div>
+
+    <hr class="separator">
+
+    <!-- Flüssigkeitsentzug (UF) -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">
+        <span>Netto-Entzug (QUF)</span>
+        <span class="val" id="valUF">500 ml/h</span>
+      </div>
+      <input type="range" id="slUF" min="0" max="2500" value="500" step="25" oninput="updateCtrl()">
+      <div class="pump-indicator"><div class="pump-dot warn" id="dotUF"></div>
+        <span style="font-size:0.72rem;color:#a0aec0">Nettoflüssigkeitsentzug</span></div>
+    </div>
+
+    <!-- ① Abflusspumpe – AUTOMATISCH -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">
+        <span style="color:#fbbf24">① Abflusspumpe (Qeff)</span>
+        <span class="val auto" id="valAbfl">— ml/h</span>
+      </div>
+      <div class="auto-display">
+        <div class="auto-label">⚙ Automatisch berechnet – nicht manuell einstellbar</div>
+        <div class="auto-val" id="abflFormel">Qeff = QD + QUF</div>
+      </div>
+    </div>
+
+    <hr class="separator">
+
+    <button id="startBtn" onclick="toggleRun()">▶ CRRT STARTEN</button>
+
+    <hr class="separator" style="margin-top:12px">
+    <div class="tabs" style="margin-top:4px">
+      <button class="tab-btn active" onclick="showTab('tabInfo')">Info</button>
+      <button class="tab-btn" onclick="showTab('tabPhysik')">Physik</button>
+      <button class="tab-btn" onclick="showTab('tabKlinik')">Klinik</button>
+    </div>
+    <div id="tabInfo" class="tab-content active">
+      <p><span class="highlight">CVVHD:</span> Kontinuierliche vv-Hämodialyse. Nur Diffusion, kein Substituat.</p>
+      <p><span class="highlight">CVVHDF:</span> Diffusion + Konvektion. Substitutionspumpe nötig.</p>
+      <p><span class="highlight">CVVHF:</span> Nur Konvektion (Hämofiltration). Kein Dialysat.</p>
+      <p><span class="highlight">SCUF:</span> Langsamer reiner Flüssigkeitsentzug. Niedriger QB.</p>
+    </div>
+    <div id="tabPhysik" class="tab-content">
+      <p><span class="highlight">Diffusion:</span> J = D·A·ΔC/d – Konzentrationsgradient treibt Toxine durch Membran.</p>
+      <p><span class="highlight">Konvektion:</span> TMP treibt Wasser + mittelmolekulare Toxine durch Membran.</p>
+      <p><span class="highlight">Dosis:</span> Effluent ≥ 20–25 ml/kg/h – KDIGO-Empfehlung ITS.</p>
+    </div>
+    <div id="tabKlinik" class="tab-content">
+      <p><span class="highlight">TMP-Alarm:</span> &gt;300 mmHg → Clottinggefahr → Filter wechseln!</p>
+      <p><span class="highlight">Filterlaufzeit:</span> Ziel ≥ 24 h. Antikoagulation (Heparin/Citrat) entscheidend.</p>
+      <p><span class="highlight">Bilanz:</span> Stündliche Überwachung! Zuviel Entzug → Hypovolämie → Schock.</p>
+    </div>
+  </div>
+
+  <!-- ===== MITTE: MASCHINEN-CANVAS ===== -->
+  <div class="panel" id="machine-panel">
+    <h2 id="machineTitle">CRRT-Gerät (ITS) – Pumpen &amp; Stofftransport</h2>
+    <canvas id="machineCanvas" width="720" height="760"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div> Blut (arteriell)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> Blut (venös)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Dialysat</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> Urämietoxine (Diffusion)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div> Ultrafiltrat (Konvektion)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div> Substituat</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div> Heparin</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Ablauf/Abfall</div>
+    </div>
+  </div>
+
+  <!-- ===== RECHTS: MONITORING ===== -->
+  <div class="panel" id="monitor-panel">
+    <h2>Monitoring &amp; Alarme</h2>
+
+    <div class="monitor-grid">
+      <div class="monitor-card" id="cardPArt">
+        <div class="m-label">Zugangsdruck</div>
+        <div class="m-val" id="monPArt">--</div>
+        <div class="m-unit">mmHg</div>
+      </div>
+      <div class="monitor-card" id="cardPVen">
+        <div class="m-label">Rückflußdruck</div>
+        <div class="m-val" id="monPVen">--</div>
+        <div class="m-unit">mmHg</div>
+      </div>
+      <div class="monitor-card" id="cardTMP">
+        <div class="m-label">TMP</div>
+        <div class="m-val" id="monTMP">--</div>
+        <div class="m-unit">mmHg</div>
+      </div>
+      <div class="monitor-card">
+        <div class="m-label">Effluent</div>
+        <div class="m-val" id="monEff">--</div>
+        <div class="m-unit">ml/h</div>
+      </div>
+      <div class="monitor-card">
+        <div class="m-label">Filter-Laufzeit</div>
+        <div class="m-val" id="monFilterRT">0:00</div>
+        <div class="m-unit">hh:mm</div>
+      </div>
+      <div class="monitor-card">
+        <div class="m-label">Bilanz</div>
+        <div class="m-val" id="monBilanz">0 ml</div>
+        <div class="m-unit">kumulativ</div>
+      </div>
+      <div class="monitor-card">
+        <div class="m-label">UF erzielt</div>
+        <div class="m-val" id="monUFAkt">0 ml</div>
+        <div class="m-unit">gesamt</div>
+      </div>
+      <div class="monitor-card">
+        <div class="m-label">Clearance</div>
+        <div class="m-val" id="monCl">--</div>
+        <div class="m-unit">ml/min</div>
+      </div>
+    </div>
+
+    <!-- Fluid-Bilanz-Balken -->
+    <div style="margin-top:8px">
+      <div style="font-size:0.72rem;color:#a0aec0;margin-bottom:3px">Flüssigkeitsbilanz (stündlich):</div>
+      <div class="bilanz-bar-wrap">
+        <div class="bilanz-bar" id="bilanzBar" style="width:50%">0 ml/h</div>
+      </div>
+    </div>
+
+    <div class="alarm-box ok" id="alarmBox">● Alle Parameter im Normbereich</div>
+
+    <!-- ALARM-SZENARIEN (Lernübungen) -->
+    <div class="qeff-box" style="margin-top:8px">
+      <div class="qeff-title" style="margin-bottom:8px">⚠ Alarm-Übungen (Quiz)</div>
+      <div style="font-size:0.72rem;color:#718096;margin-bottom:8px">Klicken um ein Alarm-Szenario zu analysieren und die richtige Reaktion zu üben:</div>
+      <button class="alarm-scenario-btn" id="btnAlarm1" onclick="openQuiz('artNeg')">
+        <span class="alarm-tag">A1</span> Zugangsdruck zu negativ (&lt; −200 mmHg)
+      </button>
+      <button class="alarm-scenario-btn" id="btnAlarm2" onclick="openQuiz('artPos')">
+        <span class="alarm-tag">A2</span> Zugangsdruck zu positiv (Obstruktion)
+      </button>
+      <button class="alarm-scenario-btn" id="btnAlarm3" onclick="openQuiz('venHigh')">
+        <span class="alarm-tag">A3</span> Rückflußdruck zu hoch (&gt; 200 mmHg)
+      </button>
+      <button class="alarm-scenario-btn" id="btnAlarm4" onclick="openQuiz('venLow')">
+        <span class="alarm-tag">A4</span> Rückflußdruck zu niedrig (&lt; 20 mmHg)
+      </button>
+      <button class="alarm-scenario-btn" id="btnAlarm5" onclick="openQuiz('tmpHigh')">
+        <span class="alarm-tag">A5</span> Transmembrandruck zu hoch (&gt; 300 mmHg)
+      </button>
+    </div>
+
+    <!-- ABFLUSSPUMPE BERECHNUNG -->
+    <div class="qeff-box">
+      <div class="qeff-title">① Abflusspumpe – Automatische Berechnung</div>
+      <div style="font-size:0.72rem;color:#a0aec0;margin-bottom:8px">
+        Die Abflusspumpe transportiert <strong style="color:#fbbf24">100%</strong> des Dialysats
+        + den eingestellten Flüssigkeitsentzug in den Ablaufbeutel.
+      </div>
+
+      <div class="qeff-row">
+        <span class="qeff-name" style="color:#3b82f6">Dialysat ×60</span>
+        <div class="qeff-bar-wrap"><div class="qeff-bar" id="barQD" style="background:#3b82f6;width:0%"></div></div>
+        <span class="qeff-value" id="qeffQD" style="color:#60a5fa">0 ml/h</span>
+      </div>
+      <div class="qeff-row">
+        <span class="qeff-name" style="color:#e94560">+ Entzug</span>
+        <div class="qeff-bar-wrap"><div class="qeff-bar" id="barQUF" style="background:#e94560;width:0%"></div></div>
+        <span class="qeff-value" id="qeffQUF" style="color:#fc8181">0 ml/h</span>
+      </div>
+      <div class="qeff-row" id="rowQS" style="display:none">
+        <span class="qeff-name" id="qsRowLabel" style="color:#10b981">+ Substituat</span>
+        <div class="qeff-bar-wrap"><div class="qeff-bar" id="barQS" style="background:#10b981;width:0%"></div></div>
+        <span class="qeff-value" id="qeffQS" style="color:#34d399">0 ml/h</span>
+      </div>
+      <div style="border-top:1px solid #1e4060;margin:6px 0"></div>
+      <div class="qeff-row">
+        <span class="qeff-name" style="color:#fbbf24;font-weight:bold">= Abflusspumpe</span>
+        <div class="qeff-bar-wrap"><div class="qeff-bar" id="barQeff" style="background:#f59e0b;width:0%"></div></div>
+        <span class="qeff-value" id="qeffTotal" style="color:#fbbf24;font-weight:bold">0 ml/h</span>
+      </div>
+
+      <div class="qeff-formula" id="qeffFormula">
+        <span class="eq">Qeff</span> = QD×60 + QUF<br>
+        <span class="eq">Qeff</span> = 0 + 0 = <span class="eq">0 ml/h</span>
+      </div>
+    </div>
+
+    <!-- PUMPENDREHZAHL-VERGLEICH -->
+    <div class="qeff-box" style="margin-top:8px">
+      <div class="qeff-title">Pumpendrehzahlen (relativ zur Maximalleistung)</div>
+      <div class="speed-bars">
+        <div class="speed-row">
+          <span class="speed-name" style="color:#a78bfa">⑥ Blutpumpe</span>
+          <div class="speed-bar-wrap"><div class="speed-bar" id="spd6" style="background:#7c3aed;width:0%"></div></div>
+          <span class="speed-val" id="spdVal6" style="color:#a78bfa">0%</span>
+        </div>
+        <div class="speed-row" id="spdRow4">
+          <span class="speed-name" style="color:#60a5fa">④ Dialysatpumpe</span>
+          <div class="speed-bar-wrap"><div class="speed-bar" id="spd4" style="background:#3b82f6;width:0%"></div></div>
+          <span class="speed-val" id="spdVal4" style="color:#60a5fa">0%</span>
+        </div>
+        <div class="speed-row" id="spdRow5">
+          <span class="speed-name" style="color:#34d399">⑤ Substitution</span>
+          <div class="speed-bar-wrap"><div class="speed-bar" id="spd5" style="background:#10b981;width:0%"></div></div>
+          <span class="speed-val" id="spdVal5" style="color:#34d399">0%</span>
+        </div>
+        <div class="speed-row">
+          <span class="speed-name" style="color:#fbbf24;font-weight:bold">① Abflusspumpe</span>
+          <div class="speed-bar-wrap"><div class="speed-bar" id="spd1" style="background:#f59e0b;width:0%"></div></div>
+          <span class="speed-val" id="spdVal1" style="color:#fbbf24;font-weight:bold">0%</span>
+        </div>
+      </div>
+      <div style="font-size:0.7rem;color:#718096;margin-top:5px">
+        <span style="color:#3b82f6">■</span> QD-Anteil &nbsp;
+        <span style="color:#e94560">■</span> Entzug-Anteil &nbsp;→&nbsp; Abflusspumpe dreht schneller wenn QD↑ oder Entzug↑
+      </div>
+    </div>
+
+    <hr class="separator" style="margin-top:10px">
+    <canvas id="harnstoffCanvas" width="240" height="75" style="width:100%;height:75px;border-radius:5px;background:#0d1b2a;display:block;margin-bottom:8px"></canvas>
+    <div style="font-size:0.7rem;color:#718096;text-align:center;margin-bottom:8px">Harnstoffkonzentration Plasmaverlauf</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab2('tabInfo2')">Info</button>
+      <button class="tab-btn" onclick="showTab2('tabPhysik2')">Physik</button>
+      <button class="tab-btn" onclick="showTab2('tabKlinik2')">Klinik</button>
+    </div>
+    <div id="tabInfo2" class="tab-content active" style="margin-top:6px">
+      <p><span class="highlight">Zugangsdruck:</span> Normal −80 bis −150 mmHg. Abhängig von QB und Katheterlage.</p>
+      <p><span class="highlight">Rückflußdruck:</span> Normal 50–150 mmHg. Erhöhung = Widerstand im venösen Schenkel.</p>
+      <p><span class="highlight">TMP:</span> Normal &lt;150 mmHg. Anstieg = Filtermembran verlegt (Clotting).</p>
+    </div>
+    <div id="tabPhysik2" class="tab-content" style="margin-top:6px">
+      <p><span class="highlight">TMP = P_Blut − P_Filtrat</span> treibt Ultrafiltration.</p>
+      <p><span class="highlight">TMP↑ bei:</span> QB↑, QUF↑, Clotting, hohem Hämatokrit.</p>
+    </div>
+    <div id="tabKlinik2" class="tab-content" style="margin-top:6px">
+      <p><span class="highlight">Filterlaufzeit:</span> Ziel ≥ 24 h (Heparin) bzw. ≥ 72 h (Citrat).</p>
+      <p><span class="highlight">Dosis:</span> Effluent ≥ 20 ml/kg/h laut KDIGO-Leitlinie ITS.</p>
+      <p><span class="highlight">Bilanz:</span> Max. −100 bis −200 ml/h auf der ITS – engmaschig kontrollieren!</p>
+    </div>
+
+  </div><!-- end monitor -->
+
+</div><!-- end main-grid -->
+
+<!-- ===== QUIZ OVERLAY ===== -->
+<div id="quizOverlay">
+  <div class="quiz-box">
+    <div class="quiz-alarm-title" id="quizTitle"></div>
+    <div class="quiz-desc" id="quizDesc"></div>
+    <div class="quiz-section-head">Mögliche Ursachen – alle zutreffenden auswählen:</div>
+    <div class="quiz-options" id="quizCauses"></div>
+    <div class="quiz-section-head">Richtige Maßnahmen – alle zutreffenden auswählen:</div>
+    <div class="quiz-options" id="quizActions"></div>
+    <div style="margin-top:10px">
+      <button class="quiz-btn quiz-btn-submit" onclick="submitQuiz()">Auswertung anzeigen</button>
+      <button class="quiz-btn quiz-btn-close" onclick="closeQuiz()">Schließen</button>
+    </div>
+    <div class="quiz-feedback" id="quizFeedback"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+const state = {
+  running: false, mode: 'CVVHD',
+  QB:150, QD:1500, QUF:500, QS:0, QSyr:5,
+  elapsed:0, ufAccum:0, bilanz:0, harnstoff:100,
+  hHistory:[100],
+  subMode: 'post',      // 'pre' or 'post'
+  filterRuntime: 0,     // Filter-Laufzeit in Minuten
+  filterTMPfactor: 0,   // TMP-Anstieg durch Clotting (0-1)
+};
+
+// Qeff (ml/h): Abflusspumpe = Dialysat + Entzug + Substituat (nur Prä-Filter)
+function getQeff() {
+  const qsPre = (state.subMode === 'pre') ? state.QS : 0;
+  return state.QD + state.QUF + qsPre;  // alles in ml/h
+}
+
+// Druckberechnungen
+function getPArt() {
+  // Normal −80 bis −150 mmHg. Je höher QB, desto negativer.
+  return -(state.QB * 0.75 + 20) | 0;  // bei QB=150: −132, QB=300: −245
+}
+function getPVen() {
+  // Normal 50–150 mmHg. Abhängig von QB, QUF und Filterzustand.
+  return (state.QB * 0.45 + 30 + state.QUF * 0.02 + state.filterTMPfactor * 60) | 0;
+}
+function getTMP() {
+  // Normal 50–150 mmHg. Steigt mit QUF und Clotting.
+  return (state.QUF * 0.06 + 30 + state.QB * 0.1 + state.filterTMPfactor * 180) | 0;
+}
+
+// Modus-Hilfsfunktionen
+const hasDialysat  = () => state.mode !== 'CVVHF' && state.mode !== 'SCUF';
+const hasSubstPump = () => state.mode === 'CVVHDF' || state.mode === 'CVVHF';
+
+// ============================================================
+//  CANVAS
+// ============================================================
+const mCanvas = document.getElementById('machineCanvas');
+const mCtx    = mCanvas.getContext('2d');
+const hCanvas = document.getElementById('harnstoffCanvas');
+const hCtx    = hCanvas.getContext('2d');
+let machTick=0, pA={p1:0,p4:0,p5:0,p6:0};
+
+// ============================================================
+//  MACHINE LAYOUT  (canvas 720×760)
+// ============================================================
+/*  LEFT pumps  (x≈78):
+      ② Vorpumpe          cy=222, r=26
+      ③ Heparinpumpe      y=296 (syringe)
+      ⑥ Blutpumpe         cy=420, r=50  (large)
+    RIGHT pumps (x≈642):
+      ① Abflusspumpe      cy=222, r=26
+      ④ Dialysatpumpe     cy=380, r=26
+      ⑤ Substitution      cy=525, r=26
+    FILTER:  x=195, y=168, w=330, h=454
+             membrane x=360
+    TUBING (no crossings):
+      Blood (left side only):
+        art → P2 → (heparin injection) → P6 → filter blood inlet (top-left) via left-side loop
+        filter blood outlet (bottom-left) → venous → patient
+        P5 substitution post-filter: RIGHT→bottom→left to venous line  (below filter)
+      Dialysate (right side only):
+        supply → P4 → filter dialysate inlet (bottom-right)  via right-side loop
+        filter dialysate outlet (top-right) → P1 → drain  via top-right loop
+*/
+const ML = {
+  W:720, H:760,
+  sX:12, sY:8, sW:696, sH:112,         // screen
+  bX:12, bY:148, bW:696, bH:590,       // body
+  fX:195, fY:168, fW:330, fH:454,      // filter
+  get mX(){return this.fX+this.fW/2;}, // membrane = 360
+  // Pumps  (P2 Vorpumpe entfernt)
+  p6:{ cx:78,  cy:360, r:50, color:'#7c3aed', label:'⑥ Blutpumpe',      speed:()=>state.QB/600  },
+  p3:{ x:12,   y:260, w:66,  h:22, color:'#f97316', label:'③ Heparinpumpe' },
+  // P1 speed: visibly reacts to BOTH QD and QUF – QUF-component amplified for clear visual feedback
+  p1:{ cx:642, cy:222, r:26, color:'#f59e0b', label:'① Abflusspumpe',
+       speed:()=> 0.15 + (state.QD/3000)*0.45 + (state.QUF/2500)*0.40
+                  + (state.subMode==='pre' ? state.QS/3000*0.10 : 0) },
+  p4:{ cx:642, cy:380, r:26, color:'#3b82f6', label:'④ Dialysatpumpe',  speed:()=>state.QD/3000 },
+  p5:{ cx:642, cy:525, r:26, color:'#10b981', label:'⑤ Substitution',   speed:()=>state.QS/3000 },
+};
+
+// ============================================================
+//  PUMP ROTATION
+// ============================================================
+function advancePumps() {
+  if (!state.running) return;
+  const d=0.048;
+  pA.p6 += d * ML.p6.speed() * 3;
+  pA.p1 += d * ML.p1.speed() * 4;
+  pA.p4 += d * ML.p4.speed() * 4;
+  pA.p5 += d * ML.p5.speed() * 4;
+}
+
+// ============================================================
+//  DRAW HELPERS
+// ============================================================
+function rr(ctx,x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function arrowHead(ctx,x,y,angle,color,size=8) {
+  ctx.save(); ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x-size*Math.cos(angle-0.4),y-size*Math.sin(angle-0.4));
+  ctx.lineTo(x-size*Math.cos(angle+0.4),y-size*Math.sin(angle+0.4));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function drawPeristalticPump(ctx, p, angle, active) {
+  const {cx,cy,r,color}=p;
+  // Housing
+  ctx.beginPath(); ctx.arc(cx,cy,r+5,0,Math.PI*2);
+  ctx.fillStyle='#1a1e2c'; ctx.fill();
+  ctx.strokeStyle='#8090b0'; ctx.lineWidth=1.5; ctx.stroke();
+  // Colored tubing arc (shows which fluid)
+  ctx.beginPath(); ctx.arc(cx,cy,r+2,-Math.PI*0.88,Math.PI*0.08);
+  ctx.strokeStyle=color; ctx.lineWidth=5; ctx.stroke();
+  // Pump body
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  const g=ctx.createRadialGradient(cx-r*0.35,cy-r*0.35,2,cx,cy,r);
+  g.addColorStop(0,'#2a3450'); g.addColorStop(1,'#141824');
+  ctx.fillStyle=g; ctx.fill();
+  ctx.strokeStyle='#303860'; ctx.lineWidth=1; ctx.stroke();
+  // Rotor
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.48,0,Math.PI*2);
+  ctx.fillStyle='#1c2438'; ctx.fill();
+  // Rollers
+  const numR=r>40?3:2, rR=r>40?8:6;
+  for(let i=0;i<numR;i++){
+    const a=angle+(i*Math.PI*2/numR);
+    const rx=cx+r*0.52*Math.cos(a), ry=cy+r*0.52*Math.sin(a);
+    ctx.beginPath(); ctx.arc(rx,ry,rR,0,Math.PI*2);
+    ctx.fillStyle=active?color:'#404858'; ctx.fill();
+    ctx.strokeStyle=active?color+'88':'#303848'; ctx.lineWidth=1; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(cx,cy,3.5,0,Math.PI*2);
+  ctx.fillStyle='#283040'; ctx.fill();
+}
+
+function drawSyringePump(ctx,p,active) {
+  const {x,y,w,h,color}=p;
+  // Housing
+  rr(ctx,x-2,y-2,w+4,h+4,8); ctx.fillStyle='#1a1e2c'; ctx.fill();
+  ctx.strokeStyle='#8090b0'; ctx.lineWidth=1.5; ctx.stroke();
+  // Barrel glass
+  rr(ctx,x+4,y+3,w-16,h-6,4);
+  ctx.fillStyle='rgba(180,220,255,0.18)'; ctx.fill();
+  ctx.strokeStyle='#4a6080'; ctx.lineWidth=1; ctx.stroke();
+  // Scale ticks
+  for(let i=0;i<5;i++){
+    const tx=x+8+i*(w-22)/4;
+    ctx.beginPath(); ctx.moveTo(tx,y+4); ctx.lineTo(tx,y+h-4);
+    ctx.strokeStyle='rgba(60,100,140,0.45)'; ctx.lineWidth=0.7; ctx.stroke();
+  }
+  // Plunger
+  const plx=x+8+(active?((machTick*0.14)%((w-20))):((w-20)*0.5));
+  ctx.beginPath(); ctx.moveTo(plx,y+2); ctx.lineTo(plx,y+h-2);
+  ctx.strokeStyle=color; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke(); ctx.lineCap='butt';
+  // Tip connector (right end)
+  ctx.beginPath(); ctx.moveTo(x+w-8,y+h/2-3); ctx.lineTo(x+w-8,y+h/2+3); ctx.lineTo(x+w-2,y+h/2);
+  ctx.closePath(); ctx.fillStyle='#607080'; ctx.fill();
+  // "Heparin" marker
+  ctx.font='6px sans-serif'; ctx.fillStyle=color; ctx.textAlign='center';
+  ctx.fillText('Heparin',x+w/2-6,y+h+12);
+}
+
+// ============================================================
+//  ABFLUSSPUMPE SPEED INDICATOR
+//  Zeigt visuell: äußerer Ring = QD-Anteil (blau), innerer Ring = QUF-Anteil (rot)
+// ============================================================
+function drawAbflusspumpeIndicator(ctx) {
+  const {p1} = ML;
+  const {cx,cy,r} = p1;
+  const qd  = state.QD/3000;        // 0–1
+  const quf = state.QUF/2500;       // 0–1
+  const outerR = r + 14;
+
+  // QD arc (blue, outer ring background)
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, -Math.PI/2, -Math.PI/2 + Math.PI*2*qd);
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
+
+  // QUF arc (red/orange)
+  const qufEnd = -Math.PI/2 + Math.PI*2*(qd + quf);
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, -Math.PI/2 + Math.PI*2*qd, qufEnd);
+  ctx.strokeStyle = '#e94560'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
+
+  // QS arc (green, nur wenn QS > 0 UND Prä-Filter – dann geht QS durch Abflusspumpe)
+  if(state.QS > 0 && state.subMode === 'pre') {
+    const qs = state.QS / 3000 * 0.10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, qufEnd, qufEnd + Math.PI*2*qs);
+    ctx.strokeStyle = '#10b981'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+
+  // Speed text inside pump
+  const spd = ML.p1.speed();
+  ctx.save(); ctx.textAlign='center'; ctx.font='bold 8px monospace';
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText((spd*100).toFixed(0)+'%', cx, cy+r*0.3);
+  ctx.restore();
+
+  // Mini legend next to pump
+  const lx = cx + outerR + 6, ly = cy - 14;
+  ctx.save(); ctx.font='7px sans-serif'; ctx.textAlign='left';
+  if(hasDialysat()) { ctx.fillStyle='#3b82f6'; ctx.fillText('QD', lx, ly); }
+  ctx.fillStyle='#e94560'; ctx.fillText('QUF', lx, hasDialysat()?ly+12:ly);
+  if(state.QS > 0 && state.subMode === 'pre') {
+    ctx.fillStyle='#10b981'; ctx.fillText('QS', lx, hasDialysat()?ly+24:ly+12);
+  }
+  ctx.restore();
+}
+
+// ============================================================
+//  WEICHE (Verteilerventil) Symbol
+// ============================================================
+function drawWeiche(ctx, x, y, mode, opacity) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.4, opacity);
+  const r = 9;
+  // Hintergrundkreis
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fillStyle = '#0d2030'; ctx.fill();
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Aktiver Pfeil zeigt aktive Richtung
+  const activeColor = '#10b981', dimColor = '#1a4a30';
+  // Oben (Prä)
+  ctx.strokeStyle = mode==='pre' ? activeColor : dimColor;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(x, y-3); ctx.lineTo(x, y-r+3); ctx.stroke();
+  if(mode==='pre') arrowHead(ctx, x, y-r+2, -Math.PI/2, activeColor, 4);
+  // Unten (Post)
+  ctx.strokeStyle = mode==='post' ? activeColor : dimColor;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(x, y+3); ctx.lineTo(x, y+r-3); ctx.stroke();
+  if(mode==='post') arrowHead(ctx, x, y+r-2, Math.PI/2, activeColor, 4);
+
+  // "W" Label
+  ctx.font = 'bold 6px monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#10b981'; ctx.fillText('W', x, y+2.5);
+
+  // Mode-Label rechts
+  ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#34d399';
+  ctx.fillText(mode==='pre'?'Prä':'Post', x+r+3, y+3);
+  ctx.restore();
+}
+
+// ============================================================
+//  TUBING  (guaranteed no crossings)
+// ============================================================
+/*
+  BLOOD circuit uses x<192 (LEFT of filter left edge x=195) and y passages:
+    - Vertical at x=78 for P2→P6 segment
+    - Right-turn loop: P6→right→(x=148,y=155)→right→filter top-left
+    - Blood outlet at (191,622) goes down then left to patient
+  DIALYSATE circuit uses x>528 (RIGHT of filter right edge x=525) and y passages:
+    - Supply from right wall → P4 (x=642)
+    - P4→right-side curve→filter bottom-right at (529,622)
+    - Filter top-right (529,175) up to y=152 then right to P1 (x=642)
+    - P1 drain: x=642 straight down
+  SUBSTITUTION (right side, below filter):
+    - P5 (x=642)→left→down→left below filter→joins venous at x=191,y=655
+  These paths share NO common x/y segments.
+*/
+function drawTubing(ctx) {
+  const {fX,fY,fW,fH,p6,p3,p1,p4,p5}=ML;
+  const fR=fX+fW, fB=fY+fH; // 525, 622
+  const tOffset=state.running?-(machTick*2):0;
+
+  function tube(pts,color,lw=3.5,dash=true) {
+    if(pts.length<2) return;
+    ctx.save();
+    ctx.strokeStyle=color; ctx.lineWidth=lw;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    if(dash){ ctx.setLineDash([8,5]); ctx.lineDashOffset=tOffset; }
+    ctx.beginPath();
+    pts.forEach((pt,i)=>i===0?ctx.moveTo(pt[0],pt[1]):ctx.lineTo(pt[0],pt[1]));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Arrow heads to show flow direction
+  function flowArrow(x,y,angle,color) {
+    arrowHead(ctx,x,y,angle,color,9);
+  }
+
+  // == BLOOD CIRCUIT (left side, kein P2) ==
+  // Patient arteriell → direkt in ⑥ Blutpumpe (oben eingehend)
+  tube([[12,312],[78,312]],'#dc2626');
+  flowArrow(48,312,0,'#dc2626');
+
+  // ③ Heparin → Blutlinie kurz vor Blutpumpe
+  tube([[78,281],[78,312]],'#f97316',2);
+
+  // ⑥ Blutpumpe → Filter Bluteingang oben-links
+  // P6 (cy=360,r=50): rechts raus → x=148 hoch → über Filter oben links rein
+  tube([[128,360],[148,360],[148,152],[191,152],[191,170]],'#dc2626',3.5);
+  flowArrow(148,260,-Math.PI/2,'#dc2626');
+
+  // Filter Blutausgang unten-links → Patient venös
+  tube([[191,fB],[191,652],[12,652]],'#7c3aed',3.5);
+  flowArrow(100,652,Math.PI,'#7c3aed');
+
+  // == SUBSTITUTION – nur bei HDF / HF ==
+  if(hasSubstPump()) {
+  const substOpacity=state.QS>0?1:0.3;
+  ctx.globalAlpha=substOpacity;
+  // Gemeinsamer Zulauf: ⑤ → Weiche (560,525)
+  tube([[616,525],[560,525]],'#10b981',2.5);
+  if(state.subMode === 'post') {
+    // POST: Weiche → unten → venöse Linie
+    tube([[560,525],[560,660],[191,660],[191,652]],'#10b981',2.5);
+    if(state.QS>0) flowArrow(380,660,Math.PI,'#10b981');
+    // Gedimmter Prä-Pfad
+    ctx.globalAlpha=substOpacity*0.12;
+    tube([[560,525],[560,130],[191,130],[191,168]],'#10b981',1.5,false);
+    ctx.globalAlpha=substOpacity;
+  } else {
+    // PRÄ: Weiche → oben → Bluteingang (oben-links Filter)
+    tube([[560,525],[560,130],[191,130],[191,168]],'#10b981',2.5);
+    if(state.QS>0) flowArrow(560,320,-Math.PI/2,'#10b981');
+    if(state.QS>0) flowArrow(300,130,Math.PI,'#10b981');
+    // Gedimmter Post-Pfad
+    ctx.globalAlpha=substOpacity*0.12;
+    tube([[560,525],[560,660],[191,660],[191,652]],'#10b981',1.5,false);
+    ctx.globalAlpha=substOpacity;
+  }
+  ctx.globalAlpha=1;
+  // Weiche-Symbol
+  drawWeiche(ctx, 560, 525, state.subMode, substOpacity);
+
+  // Substitutions-Zufluss (supply from right wall) → ⑤
+  ctx.globalAlpha=state.QS>0?1:0.3;
+  tube([[720,525],[668,525]],'#10b981',3,false);
+  ctx.globalAlpha=1;
+  } // end hasSubstPump
+
+  // == DIALYSATE CIRCUIT (right side) – nur wenn Dialysat vorhanden (nicht HF) ==
+  if(hasDialysat()) {
+    // Dialysat-Zufluss (supply from right wall) → ④ Dialysatpumpe
+    tube([[720,380],[668,380]],'#3b82f6',3,false);
+    flowArrow(695,380,Math.PI,'#3b82f6');
+
+    // ④ Dialysatpumpe → Filter Dialysateingang unten-rechts
+    tube([[616,380],[548,380],[548,622],[529,622],[529,fB]],'#3b82f6',3.5);
+    flowArrow(548,510,Math.PI/2,'#3b82f6');
+  }
+
+  // Filter Ausgang oben-rechts → ① Abflusspumpe (immer – trägt Dialysat+UF oder nur Filtrat in HF)
+  // Prä-Filter: Substitutionsleitung kreuzt bei (560,152) → Brückensymbol
+  if(hasSubstPump() && state.subMode === 'pre' && state.QS > 0) {
+    tube([[529,fY],[529,152],[556,152]],'#f59e0b',3.5);  // links von Kreuzung
+    ctx.save();
+    ctx.beginPath(); ctx.arc(560,152,4,Math.PI,0,false);
+    ctx.strokeStyle='#f59e0b'; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.stroke();
+    ctx.restore();
+    tube([[564,152],[642,152],[642,196]],'#f59e0b',3.5);  // rechts von Kreuzung
+  } else {
+    tube([[529,fY],[529,152],[642,152],[642,196]],'#f59e0b',3.5);
+  }
+  flowArrow(590,152,0,'#f59e0b');
+
+  // ① Abflusspumpe → Ablauf/Abfall (immer)
+  tube([[642,248],[642,690],[702,690]],'#f59e0b',3.5);
+  flowArrow(642,490,Math.PI/2,'#f59e0b');
+}
+
+// ============================================================
+//  FILTER (LARGE, center, with transport animation)
+// ============================================================
+function drawFilter(ctx) {
+  const {fX,fY,fW,fH,mX}=ML;
+  const bW=mX-fX, dW=fX+fW-mX; // blood side width, dialysate side width
+  const hF=state.harnstoff/100;
+
+  // Outer housing
+  rr(ctx,fX-6,fY-6,fW+12,fH+12,12);
+  ctx.fillStyle='#5878a0'; ctx.fill();
+  rr(ctx,fX-2,fY-2,fW+4,fH+4,10);
+  ctx.strokeStyle='#7090b8'; ctx.lineWidth=2; ctx.stroke();
+
+  // Blood side background
+  const bG=ctx.createLinearGradient(fX,fY,fX,fY+fH);
+  bG.addColorStop(0,`rgba(160,20,20,${0.32+hF*0.48})`);
+  bG.addColorStop(0.65,`rgba(140,20,20,${0.12+hF*0.2})`);
+  bG.addColorStop(1,'rgba(100,15,15,0.08)');
+  ctx.fillStyle=bG; ctx.fillRect(fX,fY,bW,fH);
+
+  // Dialysate side background (counter-current: fresh enters bottom) – nur wenn Dialysat vorhanden
+  if(hasDialysat()) {
+    const dG=ctx.createLinearGradient(mX,fY+fH,mX,fY);
+    dG.addColorStop(0,'rgba(30,60,180,0.22)');
+    dG.addColorStop(0.6,`rgba(30,65,190,${0.1+hF*0.12})`);
+    dG.addColorStop(1,`rgba(30,80,200,${0.08+hF*0.18})`);
+    ctx.fillStyle=dG; ctx.fillRect(mX,fY,dW,fH);
+  }
+
+  // Capillary fibers (blood side)
+  const nF=9, fGap=bW/(nF+1);
+  for(let i=1;i<=nF;i++){
+    const fx=fX+i*fGap;
+    const cG=ctx.createLinearGradient(fx,fY+12,fx,fY+fH-12);
+    cG.addColorStop(0,`rgba(210,40,40,${0.8+hF*0.2})`);
+    cG.addColorStop(0.55,`rgba(190,60,60,${0.35+hF*0.3})`);
+    cG.addColorStop(1,'rgba(155,75,75,0.15)');
+    ctx.strokeStyle=cG; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(fx,fY+14); ctx.lineTo(fx,fY+fH-14); ctx.stroke();
+  }
+  ctx.lineCap='butt';
+
+  // Dialysate channels (right side, flowing up) – nur wenn Dialysat vorhanden
+  if(hasDialysat()) {
+    const nD=6, dGap=dW/(nD+1);
+    for(let i=1;i<=nD;i++){
+      const dx=mX+i*dGap;
+      const dcG=ctx.createLinearGradient(dx,fY+fH-12,dx,fY+12);
+      dcG.addColorStop(0,'rgba(60,120,220,0.45)');
+      dcG.addColorStop(1,`rgba(60,120,220,${0.08+hF*0.25})`);
+      ctx.strokeStyle=dcG; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(dx,fY+fH-14); ctx.lineTo(dx,fY+14); ctx.stroke();
+    }
+    ctx.lineCap='butt';
+  }
+
+  // Membrane (center vertical dashed)
+  ctx.setLineDash([7,5]);
+  ctx.strokeStyle='rgba(190,215,255,0.7)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(mX,fY+2); ctx.lineTo(mX,fY+fH-2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Particles
+  if(state.running){ drawAnimParts(ctx,hF); }
+  else { drawStaticParts(ctx); }
+
+  // Filter border
+  rr(ctx,fX,fY,fW,fH,6);
+  ctx.strokeStyle='rgba(110,150,195,0.55)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // End caps (4 ports)
+  ctx.fillStyle='#5878a8';
+  // Blood caps (left)
+  rr(ctx,fX-6,fY-12,bW+4,12,4);   ctx.fill(); // blood inlet top-left
+  rr(ctx,fX-6,fY+fH, bW+4,12,4);  ctx.fill(); // blood outlet bottom-left
+  // Dialysate caps (right)
+  rr(ctx,mX+2,fY-12,dW+4,12,4);   ctx.fill(); // dialysate outlet top-right
+  rr(ctx,mX+2,fY+fH, dW+4,12,4);  ctx.fill(); // dialysate inlet bottom-right
+
+  // Flow direction labels
+  ctx.save(); ctx.textAlign='center';
+  ctx.font='bold 10px sans-serif';
+  ctx.fillStyle='rgba(220,50,50,0.85)';
+  ctx.fillText(`↓ Blut  QB=${state.QB} ml/min`, fX+bW/2, fY+22);
+  ctx.fillText(`← Blut gereinigt`, fX+bW/2, fY+fH-10);
+  if(hasDialysat()) {
+    ctx.fillStyle='rgba(60,130,220,0.85)';
+    ctx.fillText(`↑ Dialysat  QD=${state.QD} ml/h`, mX+dW/2, fY+fH-10);
+    ctx.fillText(`→ verbrauchtes Dialysat`, mX+dW/2, fY+22);
+  } else {
+    ctx.fillStyle='rgba(167,139,250,0.85)';
+    ctx.fillText(`← Filtrat (UF)`, mX+dW/2, fY+22);
+  }
+  ctx.restore();
+
+  // Transport labels
+  const midY=fY+fH*0.44;
+  ctx.save(); ctx.textAlign='center'; ctx.font='bold 10px sans-serif';
+  ctx.fillStyle='rgba(251,191,50,0.95)'; ctx.fillText('Diffusion',mX,midY-10);
+  ctx.strokeStyle='rgba(251,191,50,0.8)'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(mX-24,midY); ctx.lineTo(mX+24,midY); ctx.stroke();
+  ctx.setLineDash([]);
+  arrowHead(ctx,mX+24,midY,0,'rgba(251,191,50,0.8)',7);
+  if(state.QUF>0){
+    const cY=fY+fH*0.64;
+    ctx.fillStyle='rgba(167,139,250,0.95)'; ctx.fillText('Konvektion',mX,cY-10);
+    ctx.strokeStyle='rgba(167,139,250,0.8)';
+    ctx.beginPath(); ctx.moveTo(mX-18,cY); ctx.lineTo(mX+18,cY); ctx.stroke();
+    arrowHead(ctx,mX+18,cY,0,'rgba(167,139,250,0.8)',7);
+  }
+  // Membrane label (rotated)
+  ctx.translate(mX+10,fY+fH/2); ctx.rotate(-Math.PI/2);
+  ctx.font='bold 9px sans-serif'; ctx.fillStyle='rgba(190,215,255,0.75)';
+  ctx.fillText('semipermeable Membran',0,0);
+  ctx.restore();
+
+  // Concentration gradient note
+  ctx.save(); ctx.font='8px monospace'; ctx.textAlign='right';
+  ctx.fillStyle='rgba(220,80,80,0.85)'; ctx.fillText('▼ urämisch',fX-8,fY+18);
+  ctx.fillStyle='rgba(160,120,120,0.7)'; ctx.fillText('▼ gereinigt',fX-8,fY+fH-5);
+  ctx.fillStyle='rgba(251,191,50,0.8)'; ctx.textAlign='center';
+  ctx.fillText(`Harnstoff: ${state.harnstoff.toFixed(0)}% → ${(state.harnstoff*0.35).toFixed(0)}%`,fX+fW/2,fY+fH+30);
+  ctx.restore();
+}
+
+function drawStaticParts(ctx){
+  const {fX,fY,fW,fH,mX}=ML;
+  const bW=mX-fX;
+  for(let i=0;i<20;i++){
+    const px=fX+8+(i%7)*(bW-14)/6, py=fY+20+Math.floor(i/7)*55+(i%3)*14;
+    ctx.fillStyle='rgba(251,191,50,0.42)'; ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawAnimParts(ctx,hF){
+  const {fX,fY,fW,fH,mX}=ML;
+  const bW=mX-fX, dW=fX+fW-mX;
+  const bS=Math.max(0.5,state.QB/100), dS=Math.max(0.3,state.QD/150);
+
+  // Blood (red, down)
+  for(let i=0;i<22;i++){
+    const py=fY+((machTick*bS*0.6+i*(fH/22))%fH);
+    ctx.fillStyle='rgba(210,50,50,0.6)';
+    ctx.beginPath(); ctx.arc(fX+8+(i%8)*(bW-14)/7,py,3,0,Math.PI*2); ctx.fill();
+  }
+  // Toxins (yellow, concentration fades downward)
+  for(let i=0;i<32;i++){
+    const py=fY+((machTick*bS*0.6+i*(fH/32))%fH);
+    const frac=(py-fY)/fH, conc=hF*Math.max(0,1-frac*0.78);
+    if(conc>0.04){
+      ctx.fillStyle=`rgba(251,191,50,${conc*0.88})`;
+      ctx.beginPath(); ctx.arc(fX+6+(i%9)*(bW-10)/8,py,2.5,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // Diffusion: toxins crossing membrane – nur mit Dialysat
+  const diffR=hasDialysat()&&state.QD>0?Math.min(1,state.QD/500)*hF:0;
+  if(diffR>0) {
+    for(let i=0;i<16;i++){
+      const ph=(machTick*0.36+i*42)%82;
+      if(ph>62) continue;
+      const py=fY+22+(i*(fH-44)/16);
+      const cx2=mX-28+(ph/62)*56, al=0.88*diffR*Math.sin(ph/62*Math.PI);
+      if(al<0.05) continue;
+      ctx.fillStyle=`rgba(251,191,50,${al})`;
+      ctx.beginPath(); ctx.arc(cx2,py,3,0,Math.PI*2); ctx.fill();
+    }
+    // Absorbed toxins on dialysate side (going up)
+    for(let i=0;i<14;i++){
+      const py=fY+fH-((machTick*dS*0.5+i*(fH/14))%fH);
+      ctx.fillStyle=`rgba(210,160,30,${diffR*0.55})`;
+      ctx.beginPath(); ctx.arc(mX+8+(i%6)*(dW-10)/5,py,2,0,Math.PI*2); ctx.fill();
+    }
+    // Dialysate (blue, up)
+    for(let i=0;i<20;i++){
+      const py=fY+fH-((machTick*dS*0.5+i*(fH/20))%fH);
+      ctx.fillStyle='rgba(60,130,220,0.52)';
+      ctx.beginPath(); ctx.arc(mX+7+(i%7)*(dW-10)/6,py,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // UF / convection (purple, crossing)
+  const ufR=state.QUF/2000;
+  for(let i=0;i<12;i++){
+    const ph2=(machTick*0.44+i*52)%74;
+    if(ph2>52) continue;
+    const py=fY+28+(i*(fH-56)/12);
+    const cx3=mX-18+(ph2/52)*36, al2=ufR*0.9*Math.sin(ph2/52*Math.PI);
+    if(al2<0.04) continue;
+    ctx.fillStyle=`rgba(167,139,250,${al2})`;
+    ctx.beginPath(); ctx.arc(cx3,py,3.5,0,Math.PI*2); ctx.fill();
+  }
+  // Substitution (green, entering venous side)
+  if(state.QS>0){
+    const sR=state.QS/20000;
+    for(let i=0;i<8;i++){
+      const py=fY+fH-15-i*28+((machTick*1.5)%28);
+      if(py<fY||py>fY+fH) continue;
+      ctx.fillStyle=`rgba(52,211,153,${sR*0.82})`;
+      ctx.beginPath(); ctx.arc(mX+dW*0.3+i%3*14,py,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // Heparin (orange tiny, top of blood side)
+  if(state.QSyr>0){
+    for(let i=0;i<4;i++){
+      const py=fY+14+i*28+((machTick*0.45)%28);
+      if(py>fY+fH) continue;
+      ctx.fillStyle='rgba(249,115,22,0.52)';
+      ctx.beginPath(); ctx.arc(fX+6,py,2,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ============================================================
+//  SCREEN
+// ============================================================
+function drawScreen(ctx) {
+  const {sX,sY,sW,sH,W}=ML;
+  rr(ctx,sX,sY,sW,sH,10); ctx.fillStyle='#181c28'; ctx.fill();
+  ctx.strokeStyle='#303848'; ctx.lineWidth=2; ctx.stroke();
+  // LED
+  rr(ctx,sX,sY,sW,9,5); ctx.fillStyle='#22c55e'; ctx.fill();
+  ctx.beginPath(); ctx.arc(sX+sW-8,sY+4.5,4,0,Math.PI*2); ctx.fillStyle='#16a34a'; ctx.fill();
+  const dY=sY+9;
+  // Display bg
+  rr(ctx,sX+4,dY,sW-8,sH-13,6);
+  const scG=ctx.createLinearGradient(0,dY,0,dY+sH-13);
+  scG.addColorStop(0,'#060c18'); scG.addColorStop(1,'#0a1626');
+  ctx.fillStyle=scG; ctx.fill();
+  // Top bar
+  ctx.fillStyle='#0c1e40'; ctx.fillRect(sX+4,dY,sW-8,16);
+  ctx.font='bold 9px monospace'; ctx.fillStyle='#63b3ed'; ctx.textAlign='center';
+  ctx.fillText('CRRT  ITS  –  '+state.mode, W/2, dY+11);
+  // Pump bars
+  const Qeff=getQeff();
+  const allBars=[
+    {l:'ABFL',v:ML.p1.speed(),c:'#f59e0b',u:Qeff+' ml/h'},
+    {l:'HEP', v:state.QSyr/20, c:'#f97316',u:state.QSyr+'ml/h'},
+    {l:'DIAL',v:state.QD/3000, c:'#3b82f6',u:state.QD+'ml/h'},
+    {l:'SUB', v:state.QS/3000, c:'#10b981',u:state.QS+'ml/h'},
+    {l:'BLUT',v:state.QB/300,  c:'#7c3aed',u:state.QB+'ml/m'},
+  ];
+  const bars=allBars.filter(b=>(b.l!=='DIAL'||hasDialysat())&&(b.l!=='SUB'||hasSubstPump()));
+  const bW2=80, bH=11, bY2=dY+20, bGap=(sW-8-bars.length*bW2)/(bars.length+1);
+  bars.forEach((b,i)=>{
+    const bx=sX+4+bGap+(bW2+bGap)*i;
+    ctx.fillStyle='#0a1420'; ctx.fillRect(bx,bY2,bW2,bH);
+    ctx.fillStyle=b.c; ctx.fillRect(bx,bY2,Math.max(2,b.v*bW2),bH);
+    ctx.font='7px monospace'; ctx.fillStyle=b.c; ctx.textAlign='center';
+    ctx.fillText(b.l,bx+bW2/2,bY2-2);
+    ctx.fillStyle='#c0c8d8'; ctx.fillText(b.u,bx+bW2/2,bY2+bH+9);
+  });
+  // Filter-Laufzeit
+  const fh=Math.floor(state.filterRuntime/60), fm=state.filterRuntime%60;
+  ctx.font='bold 22px monospace'; ctx.fillStyle='white'; ctx.textAlign='center';
+  ctx.fillText(String(fh).padStart(2,'0')+':'+String(fm).padStart(2,'0'), W/2, dY+67);
+  ctx.font='8px monospace'; ctx.fillStyle='#718096';
+  ctx.fillText('Filter-Laufzeit', W/2, dY+79);
+  // Status bar
+  ctx.fillStyle='#06101e'; ctx.fillRect(sX+4,dY+sH-22,sW-8,18);
+  ctx.font='8px monospace'; ctx.textAlign='left';
+  const pArt2=getPArt(), pVen2=getPVen(), TMP2=getTMP();
+  ctx.fillStyle = pArt2<-220||pArt2>-20 ? '#fc8181' : '#f87171';
+  ctx.fillText(`P-art: ${pArt2} mmHg`,sX+10,dY+sH-8);
+  ctx.fillStyle = pVen2>200||pVen2<20 ? '#fc8181' : '#a78bfa';
+  ctx.fillText(`P-ven: ${pVen2} mmHg`,sX+150,dY+sH-8);
+  ctx.fillStyle = TMP2>300 ? '#fc8181' : TMP2>200 ? '#fbbf24' : '#63b3ed';
+  ctx.fillText(`TMP: ${TMP2} mmHg`,sX+300,dY+sH-8);
+  ctx.fillStyle=state.running?'#68d391':'#a0aec0';
+  ctx.fillText(state.running?'● LÄUFT':(state.filterRuntime>0?'⏸ PAUSE':'● BEREIT'),sX+415,dY+sH-8);
+  ctx.fillStyle='#fbbf24';
+  ctx.fillText(`Qeff: ${Qeff} ml/h`,sX+510,dY+sH-8);
+}
+
+// ============================================================
+//  MACHINE BODY
+// ============================================================
+function drawBody(ctx){
+  const {bX,bY,bW,bH,W}=ML;
+  const nX=W/2-95, nW=190;
+  // Shadow
+  rr(ctx,bX+4,bY+4,bW,bH,20); ctx.fillStyle='rgba(0,0,0,0.42)'; ctx.fill();
+  // Body
+  const bG=ctx.createLinearGradient(bX,0,bX+bW,0);
+  bG.addColorStop(0,'#9aa4b8'); bG.addColorStop(0.35,'#ccd4e4'); bG.addColorStop(1,'#8a94a8');
+  rr(ctx,bX,bY,bW,bH,20); ctx.fillStyle=bG; ctx.fill();
+  // Highlight
+  rr(ctx,bX,bY,7,bH-22,4); ctx.fillStyle='rgba(240,248,255,0.48)'; ctx.fill();
+  rr(ctx,bX+7,bY,bW-18,6,3); ctx.fillStyle='rgba(240,248,255,0.58)'; ctx.fill();
+  // Front panel
+  rr(ctx,bX+14,bY+14,bW-28,bH-28,14); ctx.fillStyle='#8890a4'; ctx.fill();
+  rr(ctx,bX+16,bY+16,bW-32,bH-32,12); ctx.fillStyle='#9aa2b6'; ctx.fill();
+  // Neck
+  ctx.fillStyle='#8890a2';
+  ctx.fillRect(nX,ML.sY+ML.sH,nW,bY-(ML.sY+ML.sH)+10);
+  // Wheels + base
+  ctx.fillStyle='#383e4e';
+  for(const wx of [bX+60,bX+bW-60]){
+    ctx.beginPath(); ctx.ellipse(wx,bY+bH+8,22,11,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#484e62'; ctx.beginPath(); ctx.ellipse(wx,bY+bH+6,18,9,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#383e4e';
+  }
+  rr(ctx,bX+20,bY+bH,bW-40,16,8); ctx.fillStyle='#606878'; ctx.fill();
+}
+
+// ============================================================
+//  LABELS
+// ============================================================
+function drawLabels(ctx){
+  const {p6,p3,p1,p4,p5,fX,fY,fW,fH}=ML;
+  function lbl(t,x,y,c,size=9){
+    ctx.save(); ctx.font=`bold ${size}px sans-serif`; ctx.fillStyle=c; ctx.textAlign='center';
+    ctx.fillText(t,x,y); ctx.restore();
+  }
+  // Pump labels
+  lbl(p1.label,p1.cx,p1.cy+p1.r+20,'#fbbf24');
+  lbl(p3.label,p3.x+p3.w/2,p3.y+p3.h+14,'#fb923c');
+  if(hasDialysat())  lbl(p4.label,p4.cx,p4.cy+p4.r+20,'#60a5fa');
+  if(hasSubstPump()) lbl(p5.label,p5.cx,p5.cy+p5.r+20,'#34d399');
+  lbl(p6.label,p6.cx,p6.cy+p6.r+24,'#c4b5fd',10);
+
+  // Filter title
+  const filterTitle = state.mode==='SCUF' ? 'HÄMOFILTER (SCUF)' : state.mode==='CVVHF' ? 'HÄMOFILTER (CVVHF)' : 'HÄMODIAFILTER (CRRT)';
+  lbl(filterTitle,fX+fW/2,fY-20,'rgba(180,210,240,0.9)',11);
+
+  // Connection labels
+  ctx.save(); ctx.font='bold 8px sans-serif';
+  ctx.fillStyle='#f87171'; ctx.textAlign='left';  ctx.fillText('◄ Patient arteriell',14,215);
+  ctx.fillStyle='#a78bfa'; ctx.fillText('◄ Patient venös',     14,670);
+  ctx.fillStyle='#fbbf24'; ctx.fillText('▼ Ablaufbeutel',      648,708);
+  if(hasDialysat())  { ctx.fillStyle='#3b82f6'; ctx.textAlign='right'; ctx.fillText('Dialysat-Zufluss ►',706,373); }
+  if(hasSubstPump()) { ctx.fillStyle='#10b981'; ctx.textAlign='right'; ctx.fillText('Substituat-Zufluss ►',706,518); }
+  ctx.restore();
+
+  // Pressure sensor badges
+  function pSens(t,x,y,c){
+    rr(ctx,x-18,y-8,36,16,4); ctx.fillStyle=c+'22'; ctx.fill();
+    ctx.strokeStyle=c; ctx.lineWidth=1; ctx.stroke();
+    ctx.font='7px monospace'; ctx.fillStyle=c; ctx.textAlign='center'; ctx.fillText(t,x,y+4);
+  }
+  pSens('P-art',42,295,'#f87171');
+  pSens('P-ven',p6.cx+p6.r+28,p6.cy+30,'#a78bfa');
+}
+
+// ============================================================
+//  MAIN DRAW
+// ============================================================
+function drawMachine(){
+  const ctx=mCtx;
+  ctx.clearRect(0,0,ML.W,ML.H);
+  ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,ML.W,ML.H);
+  drawBody(ctx);
+  drawTubing(ctx);
+  drawFilter(ctx);
+  drawPeristalticPump(ctx,ML.p1,pA.p1,state.running&&getQeff()>0);
+  drawAbflusspumpeIndicator(ctx);
+  drawSyringePump(ctx,ML.p3,state.running&&state.QSyr>0);
+  if(hasDialysat())  drawPeristalticPump(ctx,ML.p4,pA.p4,state.running&&state.QD>0);
+  if(hasSubstPump()) drawPeristalticPump(ctx,ML.p5,pA.p5,state.running&&state.QS>0);
+  drawPeristalticPump(ctx,ML.p6,pA.p6,state.running&&state.QB>0);
+  drawScreen(ctx);
+  drawLabels(ctx);
+  advancePumps();
+  if(state.running) machTick++;
+}
+
+// ============================================================
+//  HARNSTOFF CHART
+// ============================================================
+function drawHarnstoffChart(){
+  const ctx=hCtx, W=hCanvas.width, H=hCanvas.height;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,W,H);
+  if(state.hHistory.length<2){
+    ctx.font='9px monospace'; ctx.fillStyle='#4a6080'; ctx.textAlign='center';
+    ctx.fillText('Startet bei Dialysebeginn',W/2,H/2+4); return;
+  }
+  const pts=state.hHistory, maxP=Math.min(pts.length,60), start=Math.max(0,pts.length-maxP);
+  ctx.strokeStyle='rgba(99,179,237,0.25)'; ctx.lineWidth=0.5;
+  [25,50,75,100].forEach(v=>{
+    const y=H-4-v*(H-12)/100;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    ctx.font='7px monospace'; ctx.fillStyle='#4a6080'; ctx.textAlign='left'; ctx.fillText(v+'%',2,y+3);
+  });
+  ctx.beginPath();
+  for(let i=0;i<maxP;i++){
+    const v=pts[start+i], x=18+i*(W-22)/(maxP-1), y=H-4-v*(H-12)/100;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2; ctx.stroke();
+  const lv=pts[pts.length-1], lx=W-4, ly=H-4-lv*(H-12)/100;
+  ctx.beginPath(); ctx.arc(lx,ly,4,0,Math.PI*2); ctx.fillStyle='#fbbf24'; ctx.fill();
+  ctx.font='bold 9px monospace'; ctx.fillStyle='#fbbf24'; ctx.textAlign='right';
+  ctx.fillText(lv.toFixed(0)+'%',W-10,ly-6);
+}
+
+// ============================================================
+//  MODE
+// ============================================================
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.textContent===m));
+  const sg=document.getElementById('substGroup'),   slS=document.getElementById('slSubst');
+  const dg=document.getElementById('dialysatGroup'), slD=document.getElementById('slDialysat');
+  const slB=document.getElementById('slBlut');
+
+  // Substitutionspumpe – nur CVVHDF / CVVHF
+  if(m==='CVVHDF'||m==='CVVHF'){
+    sg.style.opacity='1'; slS.disabled=false;
+    document.getElementById('spdRow5').style.display='flex';
+    if(!state.QS){ state.QS=1000; slS.value=1000; }
+  } else {
+    sg.style.opacity='0.4'; slS.disabled=true; state.QS=0; slS.value=0;
+    document.getElementById('spdRow5').style.display='none';
+  }
+
+  // Dialysatpumpe – nicht bei CVVHF / SCUF
+  if(m==='CVVHF'||m==='SCUF'){
+    dg.style.opacity='0.4'; slD.disabled=true; state.QD=0; slD.value=0;
+    document.getElementById('spdRow4').style.display='none';
+  } else {
+    dg.style.opacity='1'; slD.disabled=false;
+    document.getElementById('spdRow4').style.display='flex';
+    if(!state.QD){ state.QD=1500; slD.value=1500; }
+  }
+
+  // SCUF: niedriger QB, niedriger QUF, kein Substituat, kein Dialysat
+  if(m==='SCUF'){
+    slB.max=150; if(state.QB>150){ state.QB=80; slB.value=80; }
+    document.getElementById('slUF').max=500;
+    if(state.QUF>500){ state.QUF=100; document.getElementById('slUF').value=100; }
+  } else {
+    slB.max=300;
+    document.getElementById('slUF').max=2500;
+  }
+
+  updateCtrl();
+}
+
+// ============================================================
+//  SUB-MODE (Prä / Post Filter)
+// ============================================================
+function setSubMode(m) {
+  state.subMode = m;
+  document.getElementById('btnPost').classList.toggle('active', m === 'post');
+  document.getElementById('btnPre').classList.toggle('active', m === 'pre');
+  document.getElementById('substModeLabel').textContent = m === 'pre' ? 'Prä-Filter' : 'Post-Filter';
+  updateCtrl();
+}
+
+// ============================================================
+//  UPDATE CONTROLS
+// ============================================================
+function updateCtrl(){
+  state.QB   = +document.getElementById('slBlut').value;
+  state.QD   = +document.getElementById('slDialysat').value;
+  state.QUF  = +document.getElementById('slUF').value;
+  state.QS   = +document.getElementById('slSubst').value;
+  state.QSyr = +document.getElementById('slSyringe').value;
+
+  document.getElementById('valBlut').textContent    = state.QB+' ml/min';
+  document.getElementById('valDialysat').textContent= state.QD+' ml/h';
+  document.getElementById('valUF').textContent      = state.QUF+' ml/h';
+  document.getElementById('valSubst').textContent   = state.QS+' ml/h';
+  document.getElementById('valSyringe').textContent = state.QSyr+' ml/h';
+
+  // *** AUTO-CALCULATE QEFF ***
+  const Qeff=getQeff();
+  document.getElementById('valAbfl').textContent=Qeff+' ml/h';
+  const qsPreActive = state.QS>0 && state.subMode==='pre';
+  const qdPart = hasDialysat() ? `QD + ` : '';
+  const qsLabel = qsPreActive ? ` + QS(Prä)` : '';
+  document.getElementById('abflFormel').textContent=`Qeff = ${qdPart}QUF${qsLabel} = ${Qeff} ml/h`;
+
+  // Qeff breakdown bars (max ref = 5500 ml/h CRRT)
+  const maxRef=6000;
+  const qdRow = document.getElementById('barQD').closest('.qeff-row');
+  qdRow.style.display = hasDialysat() ? 'flex' : 'none';
+  document.getElementById('barQD').style.width=(state.QD/maxRef*100).toFixed(1)+'%';
+  document.getElementById('barQUF').style.width=(state.QUF/maxRef*100).toFixed(1)+'%';
+  document.getElementById('barQeff').style.width=(Qeff/maxRef*100).toFixed(1)+'%';
+  document.getElementById('qeffQD').textContent=state.QD+' ml/h';
+  document.getElementById('qeffQUF').textContent=state.QUF+' ml/h';
+  document.getElementById('qeffTotal').textContent=Qeff+' ml/h';
+
+  const showQSrow = state.QS > 0 && state.subMode === 'pre';
+  document.getElementById('rowQS').style.display = showQSrow ? 'flex' : 'none';
+  if(showQSrow){
+    document.getElementById('barQS').style.width=(state.QS/maxRef*100)+'%';
+    document.getElementById('qeffQS').textContent=state.QS+' ml/h';
+    document.getElementById('qsRowLabel').textContent = '+ QS (Prä)';
+    document.getElementById('qsRowLabel').style.color = '#10b981';
+    document.getElementById('barQS').style.background = '#10b981';
+  }
+
+  const qdLabel = hasDialysat() ? 'QD + ' : '';
+  const qsPre   = state.QS > 0 && state.subMode === 'pre';
+  const qsNote  = state.QS > 0 && state.subMode === 'post'
+                  ? ` <small style='color:#718096'>(Post-Filter→Patient)</small>` : '';
+  const fl1 = qsPre
+    ? `<span class='eq'>Qeff</span> = ${qdLabel}QUF + QS<small style='color:#718096'>(Prä)</small>`
+    : `<span class='eq'>Qeff</span> = ${qdLabel}QUF${qsNote}`;
+  const nums = qsPre
+    ? `${state.QD?state.QD+' + ':''}${state.QUF} + ${state.QS}`
+    : `${state.QD?state.QD+' + ':''}${state.QUF}`;
+  document.getElementById('qeffFormula').innerHTML = fl1 + '<br>'
+    + `<span class='eq'>Qeff</span> = ${nums} = <span class='eq'>${Qeff} ml/h</span>`;
+
+  // Pump speed bars
+  function setSpdBar(id,vid,pct){
+    document.getElementById(id).style.width=pct+'%';
+    document.getElementById(vid).textContent=pct+'%';
+  }
+  setSpdBar('spd6','spdVal6',(state.QB/300*100).toFixed(0));
+  setSpdBar('spd4','spdVal4',(state.QD/3000*100).toFixed(0));
+  setSpdBar('spd5','spdVal5',(state.QS/3000*100).toFixed(0));
+  setSpdBar('spd1','spdVal1',(ML.p1.speed()*100).toFixed(0));
+
+  // Pressures
+  const pArt=getPArt(), pVen=getPVen(), TMP=getTMP();
+  const QDmin=state.QD/60;
+  const KoA=800, Cl=hasDialysat()?(state.QB*QDmin*(KoA/1000))/(state.QB+QDmin+KoA/1000)|0:0;
+  document.getElementById('monPArt').textContent=pArt;
+  document.getElementById('monPVen').textContent=pVen;
+  document.getElementById('monTMP').textContent=TMP;
+  document.getElementById('monCl').textContent=Cl||'--';
+  document.getElementById('monEff').textContent=Qeff;
+
+  // Pressure card color coding
+  const cardPA=document.getElementById('cardPArt');
+  cardPA.style.borderColor = pArt<-200||pArt>-20 ? '#e94560' : '#0f3460';
+  cardPA.querySelector('.m-val').style.color = pArt<-200||pArt>-20 ? '#fc8181' : '#63b3ed';
+  const cardPV=document.getElementById('cardPVen');
+  cardPV.style.borderColor = pVen>200||pVen<20 ? '#e94560' : '#0f3460';
+  cardPV.querySelector('.m-val').style.color = pVen>200||pVen<20 ? '#fc8181' : '#63b3ed';
+  const cardTM=document.getElementById('cardTMP');
+  cardTM.style.borderColor = TMP>300 ? '#e94560' : TMP>200 ? '#f59e0b' : '#0f3460';
+  cardTM.querySelector('.m-val').style.color = TMP>300 ? '#fc8181' : TMP>200 ? '#fbbf24' : '#63b3ed';
+
+  setPumpDot('dotBlut',state.QB,50,300);
+  setPumpDot('dotDialysat',state.QD,200,3000);
+  setPumpDot('dotUF',state.QUF,50,2000,true);
+  checkAlarms();
+}
+
+function setPumpDot(id,val,lo,hi,isUF){
+  const d=document.getElementById(id); if(!d) return;
+  if(val===0){d.style.background='#4a5568';d.style.animation='none';}
+  else if(val<lo||val>hi){d.className='pump-dot alert';}
+  else if(isUF&&val>hi*0.8){d.className='pump-dot warn';}
+  else{d.className='pump-dot';d.style.background='';}
+}
+
+// ============================================================
+//  TOGGLE RUN
+// ============================================================
+function toggleRun(){
+  state.running=!state.running;
+  const btn=document.getElementById('startBtn');
+  if(state.running){btn.textContent='⏸ CRRT PAUSIEREN';btn.classList.add('running');}
+  else{btn.textContent='▶ CRRT FORTSETZEN';btn.classList.remove('running');}
+}
+
+// ============================================================
+//  SIMULATION TICK
+// ============================================================
+setInterval(()=>{
+  if(!state.running) return;
+  state.elapsed++;
+  state.filterRuntime++;
+
+  // Fluid balance (ml per minute, converted from ml/h)
+  const ufPerMin = state.QUF / 60;
+  const qsPerMin = (state.subMode === 'post' ? state.QS : 0) / 60; // Post-QS zurück an Patient
+  state.ufAccum += ufPerMin;
+  state.bilanz  -= (ufPerMin - qsPerMin);
+
+  // TMP steigt langsam durch Clotting (max nach ~24h ohne Antikoagulation)
+  state.filterTMPfactor = Math.min(1, state.filterRuntime / (24*60));
+
+  // Harnstoff-Clearance (vereinfacht)
+  const Kd = state.QD > 0 ? Math.min(state.QB, state.QD/60) * 0.85 : state.QUF/60 * 0.5;
+  const V = 35000;
+  state.harnstoff = Math.max(5, state.harnstoff * (1 - Kd/V));
+  state.hHistory.push(+state.harnstoff.toFixed(1));
+  if(state.hHistory.length > 120) state.hHistory.shift();
+
+  // Filter-Laufzeit-Anzeige
+  const fh = Math.floor(state.filterRuntime/60), fm = state.filterRuntime%60;
+  document.getElementById('monFilterRT').textContent =
+    String(fh).padStart(2,'0')+':'+String(fm).padStart(2,'0');
+
+  // UF & Bilanz
+  document.getElementById('monUFAkt').textContent = (state.ufAccum|0)+' ml';
+  document.getElementById('monBilanz').textContent = (state.bilanz|0)+' ml';
+
+  // Stundenbilanz-Balken: 0 ml/h = 50%, +500 ml/h überschuss = rechts, -500 ml/h = links
+  const bilanzH = state.bilanz / (state.elapsed/60); // ml/h aktuell
+  const bar = document.getElementById('bilanzBar');
+  const pctB = Math.min(100, Math.max(0, 50 + bilanzH/20)); // ±1000 ml/h = ±50%
+  bar.style.width = pctB+'%';
+  bar.textContent = (bilanzH>=0?'+':'')+bilanzH.toFixed(0)+' ml/h';
+  if(bilanzH < -200) bar.classList.add('neg'); else bar.classList.remove('neg');
+
+  checkAlarms();
+},1000);
+
+// ============================================================
+//  ALARMS
+// ============================================================
+let autoAlarmCooldown = 0;  // Sekunden bis nächster Auto-Alarm
+
+function checkAlarms(){
+  const a=[], pArt=getPArt(), pVen=getPVen(), TMP=getTMP();
+  let autoTrigger = null;
+
+  if(pArt < -230)  { a.push('🚨 Zugangsdruck zu negativ ('+pArt+' mmHg)'); autoTrigger='artNeg'; }
+  if(pArt > -20)   { a.push('🚨 Zugangsdruck zu positiv ('+pArt+' mmHg)'); if(!autoTrigger) autoTrigger='artPos'; }
+  if(pVen > 200)   { a.push('🚨 Rückflußdruck zu hoch ('+pVen+' mmHg)'); if(!autoTrigger) autoTrigger='venHigh'; }
+  if(pVen < 20 && state.running) { a.push('🚨 Rückflußdruck zu niedrig ('+pVen+' mmHg)'); if(!autoTrigger) autoTrigger='venLow'; }
+  if(TMP > 300)    { a.push('🚨 TMP zu hoch ('+TMP+' mmHg) – Clotting!'); if(!autoTrigger) autoTrigger='tmpHigh'; }
+  if(state.mode==='CVVHDF'&&state.QS===0) a.push('⚠ CVVHDF ohne Substituat!');
+  if(state.mode==='CVVHF'&&state.QS===0)  a.push('⚠ CVVHF ohne Substituat!');
+  if(state.bilanz<-3000) a.push('⚠ Flüssigkeitsentzug >3 L kumulativ');
+
+  // Alarm-Szenario-Buttons aktiv markieren
+  ['artNeg','artPos','venHigh','venLow','tmpHigh'].forEach((k,i)=>{
+    document.getElementById('btnAlarm'+(i+1)).classList.remove('active-alarm');
+  });
+  if(autoTrigger && autoAlarmCooldown <= 0 && state.running){
+    const map={artNeg:'btnAlarm1',artPos:'btnAlarm2',venHigh:'btnAlarm3',venLow:'btnAlarm4',tmpHigh:'btnAlarm5'};
+    document.getElementById(map[autoTrigger]).classList.add('active-alarm');
+    autoAlarmCooldown = 30;  // 30s Pause zwischen Auto-Alarmen
+    openQuiz(autoTrigger);
+  }
+  if(autoAlarmCooldown > 0) autoAlarmCooldown--;
+
+  const box=document.getElementById('alarmBox');
+  if(a.length>0){box.className='alarm-box';box.innerHTML=a.join('<br>');}
+  else{box.className='alarm-box ok';box.textContent='● Alle Parameter im Normbereich';}
+}
+
+// ============================================================
+//  QUIZ-SYSTEM
+// ============================================================
+const QUIZ_DATA = {
+  artNeg: {
+    title: '🚨 ALARM A1 – Zugangsdruck zu negativ (< −200 mmHg)',
+    color: '#e94560',
+    desc: 'Der arterielle Zugangsdruck fällt unter −200 mmHg. Das System kann nicht ausreichend Blut ansaugen. Das Gerät signalisiert einen Zugangsalarm.',
+    causes: [
+      { text: 'Katheter liegt schlecht oder ist an der Gefäßwand verlegt', correct: true },
+      { text: 'Blutfluss QB zu hoch für den gewählten Katheterlumen', correct: true },
+      { text: 'Patient liegt auf dem Katheter (z.B. Oberschenkelkatheter)', correct: true },
+      { text: 'Filtermembran ist verlegt (Clotting)', correct: false },
+      { text: 'Dialysatpumpe zu langsam', correct: false },
+    ],
+    actions: [
+      { text: 'QB (Blutfluss) schrittweise reduzieren', correct: true },
+      { text: 'Katheterposition überprüfen, Patient umlagern', correct: true },
+      { text: 'Arzt informieren – ggf. Katheterrevision oder Neuplatzierung', correct: true },
+      { text: 'Antikoagulation sofort erhöhen', correct: false },
+      { text: 'QUF erhöhen um Druck auszugleichen', correct: false },
+    ],
+    feedback: 'Ein zu negativer Zugangsdruck entsteht, wenn das Gerät nicht genügend Blut ansaugen kann – typischerweise durch Katheterprobleme oder zu hohe QB. Maßnahme: QB reduzieren und Katheterlage prüfen. Antikoagulation ist hier nicht die primäre Maßnahme!'
+  },
+  artPos: {
+    title: '🚨 ALARM A2 – Zugangsdruck zu positiv (Obstruktion arterieller Schenkel)',
+    color: '#f97316',
+    desc: 'Der arterielle Zugangsdruck nähert sich 0 mmHg oder wird positiv. Es liegt eine Obstruktion im arteriellen Zugangsschenkel vor.',
+    causes: [
+      { text: 'Katheter arteriell thrombosiert oder mit Fibrin verlegt', correct: true },
+      { text: 'Abknicken der arteriellen Leitung oder des Katheters', correct: true },
+      { text: 'Klemme an der Leitung versehentlich geschlossen', correct: true },
+      { text: 'QB zu niedrig eingestellt', correct: false },
+      { text: 'TMP zu hoch', correct: false },
+    ],
+    actions: [
+      { text: 'Leitungen auf Knicke und Klemmen prüfen und beheben', correct: true },
+      { text: 'Gerät stoppen, arteriellen Katheter aspirieren (ärztlich)', correct: true },
+      { text: 'QB erhöhen um den Druck zu normalisieren', correct: false },
+      { text: 'Arzt informieren – Thrombolyse oder Katheterwechsel erwägen', correct: true },
+      { text: 'Antikoagulation sofort reduzieren', correct: false },
+    ],
+    feedback: 'Ein zu positiver Zugangsdruck bedeutet eine Obstruktion, bevor das Blut das Gerät erreicht. Häufig sind Knicke oder Thromben die Ursache. QB erhöhen ist FALSCH – das würde den Druck weiter ansteigen lassen!'
+  },
+  venHigh: {
+    title: '🚨 ALARM A3 – Rückflußdruck zu hoch (> 200 mmHg)',
+    color: '#f59e0b',
+    desc: 'Der venöse Rückflußdruck übersteigt 200 mmHg. Es besteht ein erhöhter Widerstand im Rückweg des Blutes zum Patienten.',
+    causes: [
+      { text: 'Venöse Leitung abgeknickt oder komprimiert (Patient liegt drauf)', correct: true },
+      { text: 'Venöse Kammer (Blasenfalle) teilweise geronnen', correct: true },
+      { text: 'Katheter-Rücklaufschenkel thrombosiert', correct: true },
+      { text: 'Zugangsdruck zu negativ', correct: false },
+      { text: 'Dialysatfluss zu hoch', correct: false },
+    ],
+    actions: [
+      { text: 'Venöse Leitungen auf Knicke, Klemmen, Kompression prüfen', correct: true },
+      { text: 'Venöse Kammer und Luftdetektor inspizieren', correct: true },
+      { text: 'Gerät stoppen, venöse Katheterlage überprüfen (Arzt)', correct: true },
+      { text: 'UF-Rate erhöhen um Druck zu reduzieren', correct: false },
+      { text: 'QB reduzieren als Sofortmaßnahme', correct: true },
+    ],
+    feedback: 'Ein hoher Rückflußdruck signalisiert einen Widerstand im venösen Rückweg. Priorität: Leitungen auf Knicke prüfen, QB reduzieren. UF erhöhen ist FALSCH und würde die Situation verschlechtern!'
+  },
+  venLow: {
+    title: '🚨 ALARM A4 – Rückflußdruck zu niedrig (< 20 mmHg)',
+    color: '#a78bfa',
+    desc: 'Der venöse Druck fällt unter 20 mmHg. Mögliche Leckage, Diskonnektion oder Lufteintritt. LEBENSGEFAHR bei Diskonnektion!',
+    causes: [
+      { text: 'Diskonnektion der venösen Leitung (Blutungsrisiko!)', correct: true },
+      { text: 'Luft im venösen Schenkel (Luftdetektor ausgelöst)', correct: true },
+      { text: 'Venöser Katheter liegt nicht richtig (kein Gegendruck)', correct: true },
+      { text: 'Filtermembran defekt', correct: false },
+      { text: 'Zu hoher Blutfluss QB', correct: false },
+    ],
+    actions: [
+      { text: '⚠️ SOFORT stoppen! Venöse Leitung auf Diskonnektion prüfen – Blutungsgefahr!', correct: true },
+      { text: 'Venöse Leitung auf Luftblasen prüfen', correct: true },
+      { text: 'Arzt sofort informieren, Patient überwachen (Bewusstsein, Blutdruck)', correct: true },
+      { text: 'QB erhöhen um Druck anzuheben', correct: false },
+      { text: 'Keine Maßnahme – kurz abwarten', correct: false },
+    ],
+    feedback: 'Ein zu niedriger venöser Druck ist ein NOTFALL – besonders bei Diskonnektion droht Verblutung! Sofortiges Stoppen und Prüfung der venösen Leitung sind zwingend. QB erhöhen ist absolut KONTRAINDIZIERT!'
+  },
+  tmpHigh: {
+    title: '🚨 ALARM A5 – Transmembrandruck zu hoch (> 300 mmHg)',
+    color: '#10b981',
+    desc: 'Der Transmembrandruck (TMP) übersteigt 300 mmHg. Die Filtermembran verliert ihre Permeabilität – Clotting! Filterwechsel wird notwendig.',
+    causes: [
+      { text: 'Filtermembran durch Thromben verlegt (Clotting)', correct: true },
+      { text: 'Unzureichende Antikoagulation (Heparin/Citrat zu niedrig dosiert)', correct: true },
+      { text: 'Hoher Hämatokrit oder hyperviskoses Blut', correct: true },
+      { text: 'Zugangsdruck zu hoch', correct: false },
+      { text: 'Dialysatfluss zu niedrig', correct: false },
+    ],
+    actions: [
+      { text: 'Antikoagulation überprüfen (ACT oder Anti-Xa messen)', correct: true },
+      { text: 'Filter-Laufzeit und Filterleistung beurteilen → Filterwechsel planen', correct: true },
+      { text: 'QB reduzieren um Druck auf Membran zu verringern', correct: true },
+      { text: 'QD (Dialysatfluss) erhöhen um Filter freizuspülen', correct: false },
+      { text: 'Antikoagulation stoppen', correct: false },
+    ],
+    feedback: 'Ein hoher TMP zeigt Clotting der Filtermembran an. Ursache: meist unzureichende Antikoagulation. Maßnahmen: Antikoagulation prüfen, QB reduzieren, Filter wechseln. QD erhöhen hilft bei Clotting nicht – die Ursache liegt im Blutkompartiment!'
+  },
+};
+
+let currentQuiz = null;
+
+function openQuiz(alarmKey) {
+  const q = QUIZ_DATA[alarmKey];
+  currentQuiz = { key: alarmKey, data: q, causeSel: new Set(), actionSel: new Set() };
+
+  document.getElementById('quizTitle').textContent = q.title;
+  document.getElementById('quizTitle').style.color = q.color;
+  document.getElementById('quizDesc').textContent = q.desc;
+
+  function buildOptions(items, containerId, selSet) {
+    const c = document.getElementById(containerId);
+    c.innerHTML = '';
+    items.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'quiz-option';
+      div.innerHTML = `<input type="checkbox" id="opt_${containerId}_${i}">
+        <label for="opt_${containerId}_${i}" style="cursor:pointer">${item.text}</label>`;
+      div.querySelector('input').addEventListener('change', e => {
+        if(e.target.checked) selSet.add(i); else selSet.delete(i);
+        div.classList.toggle('selected', e.target.checked);
+      });
+      c.appendChild(div);
+    });
+  }
+  buildOptions(q.causes, 'quizCauses', currentQuiz.causeSel);
+  buildOptions(q.actions, 'quizActions', currentQuiz.actionSel);
+
+  const fb = document.getElementById('quizFeedback');
+  fb.style.display = 'none'; fb.innerHTML = '';
+  document.getElementById('quizOverlay').style.display = 'block';
+}
+
+function submitQuiz() {
+  if(!currentQuiz) return;
+  const q = currentQuiz.data;
+  let causeScore=0, causeTotal=0, actionScore=0, actionTotal=0;
+
+  function evalOptions(items, selSet, containerId) {
+    let sc=0, tot=0;
+    const c = document.getElementById(containerId);
+    items.forEach((item, i) => {
+      const div = c.children[i];
+      const checked = selSet.has(i);
+      if(item.correct) { tot++;
+        if(checked){ sc++; div.className='quiz-option correct'; }
+        else { div.className='quiz-option wrong'; }  // missed correct
+      } else {
+        if(checked){ div.className='quiz-option wrong'; }  // wrong selected
+        else { div.className='quiz-option'; }
+      }
+    });
+    return {sc, tot};
+  }
+  const cs = evalOptions(q.causes,  currentQuiz.causeSel,  'quizCauses');
+  const as = evalOptions(q.actions, currentQuiz.actionSel, 'quizActions');
+  causeScore=cs.sc; causeTotal=cs.tot; actionScore=as.sc; actionTotal=as.tot;
+
+  const total = causeScore+actionScore, max = causeTotal+actionTotal;
+  const pct = Math.round(total/max*100);
+  const good = pct >= 70;
+  const fb = document.getElementById('quizFeedback');
+  fb.className = 'quiz-feedback '+(good?'good':'bad');
+  fb.innerHTML = `<div class="quiz-score">${good?'✓':'✗'} ${pct}% richtig (${total}/${max} Punkte)</div>
+    <strong>Ursachen:</strong> ${causeScore}/${causeTotal} &nbsp;|&nbsp; <strong>Maßnahmen:</strong> ${actionScore}/${actionTotal}<br><br>
+    <strong>Erklärung:</strong> ${q.feedback}`;
+  fb.style.display = 'block';
+}
+
+function closeQuiz() {
+  document.getElementById('quizOverlay').style.display = 'none';
+  currentQuiz = null;
+  ['btnAlarm1','btnAlarm2','btnAlarm3','btnAlarm4','btnAlarm5'].forEach(id=>
+    document.getElementById(id).classList.remove('active-alarm'));
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+function showTab(id){
+  document.querySelectorAll('#controls-panel .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#controls-panel .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function showTab2(id){
+  document.querySelectorAll('#monitor-panel .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#monitor-panel .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ============================================================
+//  ANIMATION LOOP
+// ============================================================
+function loop(){
+  drawMachine();
+  drawHarnstoffChart();
+  requestAnimationFrame(loop);
+}
+updateCtrl();
+loop();
+</script>
+</body>
+</html>
